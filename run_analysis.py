@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from scipy.stats import gaussian_kde
 
 from simulation_framework import (
     SEED,
@@ -444,17 +445,22 @@ def plot_cost_benefit(name, cost_df, out_path):
 def plot_cycle_kde(name, base_steps, best_steps, arrival_rate, out_path):
     base = run_simulation(SimConfig(base_steps, arrival_rate, seed=901))
     best = run_simulation(SimConfig(best_steps, arrival_rate, seed=901))
-    df = pd.DataFrame(
-        {
-            "cycle_min": np.r_[np.array(base.total_cycle_times) * 60, np.array(best.total_cycle_times) * 60],
-            "config": ["Current State"] * len(base.total_cycle_times) + ["Best Redesign"] * len(best.total_cycle_times),
-        }
-    )
+    base_cycle = np.array(base.total_cycle_times) * 60
+    best_cycle = np.array(best.total_cycle_times) * 60
     fig, ax = plt.subplots(figsize=(8, 5))
-    sns.kdeplot(data=df, x="cycle_min", hue="config", fill=True, common_norm=False, alpha=0.35, ax=ax)
+    for values, label, color in [
+        (base_cycle, "Current State", "#d95f5f"),
+        (best_cycle, "Best Redesign", "#2ca25f"),
+    ]:
+        values = values[np.isfinite(values)]
+        xs = np.linspace(values.min(), values.max(), 300)
+        density = gaussian_kde(values)(xs)
+        ax.plot(xs, density, label=f"{label} (mean {values.mean():.1f} min)", color=color, lw=2)
+        ax.fill_between(xs, density, alpha=0.25, color=color)
     ax.set_title(f"{name}: before vs. after cycle time distribution", fontweight="bold")
     ax.set_xlabel("Cycle time (minutes)")
     ax.set_ylabel("Density")
+    ax.legend()
     fig.tight_layout()
     fig.savefig(out_path)
     plt.close(fig)
@@ -502,12 +508,60 @@ def validate_erlang_c_against_sim(steps, arrival_rate, scenario_name):
 
 
 def make_notebook(path, title, scenario_key):
+    spec = scenario_artifacts(scenario_key)
+    prefix = spec["prefix"]
+    plot_files = [
+        f"outputs/{prefix}_plot_01_process_flow.png",
+        f"outputs/{prefix}_plot_02_queue_growth.png",
+        f"outputs/{prefix}_plot_03_cycle_time_comparison.png",
+        f"outputs/{prefix}_plot_04_wait_breakdown.png",
+        f"outputs/{prefix}_plot_05_throughput_violin.png",
+        f"outputs/{prefix}_plot_06_mu_sensitivity.png",
+        f"outputs/{prefix}_plot_07_arrival_sensitivity.png",
+        f"outputs/{prefix}_plot_08_cost_benefit.png",
+    ]
+    if scenario_key == "warehouse":
+        plot_files.extend(
+            [
+                "outputs/warehouse_plot_09_cycle_time_kde.png",
+                "outputs/warehouse_plot_10_queue_panels.png",
+            ]
+        )
+    image_source = []
+    for plot_path in plot_files:
+        image_source.extend(
+            [
+                f"display(Markdown('### {Path(plot_path).stem.replace('_', ' ').title()}'))\n",
+                f"display(Image(filename='{plot_path}'))\n",
+            ]
+        )
+
     cells = [
         {
             "id": f"{scenario_key}-title",
             "cell_type": "markdown",
             "metadata": {},
-            "source": [f"# {title}\n", "\n", "Run this notebook top-to-bottom to regenerate scenario outputs.\n"],
+            "source": [
+                f"# {title}\n",
+                "\n",
+                "This notebook presents the scenario as an operations case study: analytical bottleneck diagnosis, "
+                "simulation validation, redesign comparison, stress testing, sensitivity analysis, and cost recommendation.\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-model-design",
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## Modeling Design\n",
+                "\n",
+                "- Six-step serial process with finite-capacity resources.\n",
+                "- Poisson arrivals with exponential inter-arrival times.\n",
+                "- Service-time distributions vary by station: exponential, Erlang-2, or lognormal.\n",
+                "- First 150 items are discarded as warmup to reduce transient bias.\n",
+                "- Each configuration uses 10 replications with reproducible seeds.\n",
+                "- All reported confidence intervals are 95% Student's t intervals.\n",
+            ],
         },
         {
             "id": f"{scenario_key}-run",
@@ -516,10 +570,103 @@ def make_notebook(path, title, scenario_key):
             "metadata": {},
             "outputs": [],
             "source": [
-                "from run_analysis import run_all\n",
+                "import pandas as pd\n",
+                "from IPython.display import Image, Markdown, display\n",
+                "from run_analysis import analyse_process, run_all, scenario_artifacts\n",
+                "\n",
                 f"artifacts = run_all(selected='{scenario_key}')\n",
-                "artifacts['summary_tables'][0].head()\n",
+                f"scenario = artifacts['{scenario_key}']\n",
+                f"spec = scenario_artifacts('{scenario_key}')\n",
+                "comparison, cost, stress = artifacts['summary_tables']\n",
+                "best = scenario['best_label']\n",
             ],
+        },
+        {
+            "id": f"{scenario_key}-analytical-md",
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## Analytical Bottleneck Check\n",
+                "\n",
+                "The first pass uses station utilisation and Erlang-C queueing estimates before simulation. "
+                "That makes the bottleneck diagnosis explainable rather than purely empirical.\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-analytical-code",
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "analysis = analyse_process(spec['configs']['Current State']).copy()\n",
+                "analysis['Utilisation_rho'] = analysis['Utilisation_rho'].round(3)\n",
+                "analysis['Avg_Wait_Time_min'] = analysis['Avg_Wait_Time_min'].replace(float('inf'), pd.NA)\n",
+                "display(analysis[['Step', 'Lambda_in', 'Mu_per_server', 'Servers', 'Utilisation_rho', 'Avg_Wait_Time_min', 'Is_Bottleneck']])\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-results-md",
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## Simulation Results\n",
+                "\n",
+                "The table below compares the current state and redesigns using replicated simulation outputs. "
+                "Cycle-time and throughput estimates include 95% confidence intervals.\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-results-code",
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "cols = ['config', 'bottleneck_rho', 'cycle_time_min_mean', 'cycle_time_min_ci_low', 'cycle_time_min_ci_high', 'throughput_hr_mean', 'bottleneck_queue_mean']\n",
+                "display(comparison[cols].round(2))\n",
+                "display(Markdown(f'**Recommended redesign:** {best}'))\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-cost-md",
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## Cost And Stress Testing\n",
+                "\n",
+                "Redesigns are evaluated as business decisions, not just queueing improvements. "
+                "The cost table converts throughput gains into net benefit, while the stress test checks behavior at +50% demand.\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-cost-code",
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "display(cost.round(2))\n",
+                "display(stress.round(2))\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-plots-md",
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [
+                "## Visual Evidence\n",
+                "\n",
+                "These plots are regenerated from the same simulation pipeline and saved under `outputs/`.\n",
+            ],
+        },
+        {
+            "id": f"{scenario_key}-plots-code",
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": image_source,
         },
     ]
     notebook = {
@@ -697,13 +844,36 @@ def write_summary(kyc, wh):
         f"Sensitivity analysis showed {kyc_range_label} stable up to {kyc_range:.0%} of base demand; warehouse base unstable beyond {base_threshold:.0%}.",
     ]
 
+    kyc_cost = kyc["cost"].set_index("config").loc[kyc["best_label"]]
+    wh_best_cost = wh["cost"].set_index("config").loc[wh["best_label"]]
+    executive_table = (
+        "| Scenario | Bottleneck | Current Cycle Time | Recommended Redesign | Cycle-Time Reduction | Net Benefit |\n"
+        "|---|---:|---:|---|---:|---:|\n"
+        f"| Fintech KYC | {kyc['spec']['bottleneck']}, rho={kyc_base['bottleneck_rho']:.2f} | "
+        f"{kyc_base['cycle_time_min_mean']:.1f} min | {kyc['best_label']} | {kyc_reduction:.1f}% | Rs.{kyc_cost['net_benefit_hr']:.0f}/hr |\n"
+        f"| Warehouse | {wh['spec']['bottleneck']}, rho={wh_base['bottleneck_rho']:.2f} | "
+        f"{wh_base['cycle_time_min_mean']:.1f} min | {wh['best_label']} | "
+        f"{((wh_base['cycle_time_min_mean'] - wh_best['cycle_time_min_mean']) / wh_base['cycle_time_min_mean'] * 100):.1f}% | "
+        f"Rs.{wh_best_cost['net_benefit_hr']:.0f}/hr |\n"
+    )
+
     summary = (
         "# Process Bottleneck Analysis\n\n"
+        "## Executive Recommendation\n"
+        + executive_table
+        + "\n"
+        "Both current-state systems have structural bottlenecks with utilisation above 1.0. "
+        "The recommended interventions are selected by net business benefit after simulation, not by capacity gain alone.\n\n"
         + section(kyc)
         + "\n"
         + section(wh)
         + "\n## Erlang-C Validation\n"
         + f"Stable exponential steps in the recommended redesigns had mean absolute wait-time error of {validation['abs_pct_error'].mean():.1f}% versus Erlang-C analytical estimates.\n"
+        + "\n## Deliverables\n"
+        + "- 2 executable scenario notebooks\n"
+        + "- 18 generated plots\n"
+        + "- CSV outputs for comparison, cost-benefit, stress testing, sensitivity analysis, and Erlang-C validation\n"
+        + "- Reusable SimPy framework with warmup removal, queue monitoring, route fractions, and replication logic\n"
         + "\n## Resume Bullets\n"
         + "\n".join(f"- {bullet}" for bullet in bullets)
         + "\n"
