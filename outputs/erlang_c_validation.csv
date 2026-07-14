@@ -1,0 +1,7 @@
+scenario,step,analytical_wait_min,simulated_wait_min,abs_pct_error
+Fintech KYC Verification Pipeline,Document Upload,0.025,0.024891969258590364,0.43212296563854835
+Fintech KYC Verification Pipeline,Liveness Check,0.6666666666666666,0.6060715135275994,9.08927297086009
+Fintech KYC Verification Pipeline,Compliance Screen,5.538461538461538,5.804245468966986,4.798876523015028
+Fintech KYC Verification Pipeline,Decision & Notify,0.0642857142857143,0.05717108851417922,11.067195644610111
+Warehouse Pick-and-Pack,Order Batching,0.03,0.028187714449465974,6.040951835113416
+Warehouse Pick-and-Pack,Dispatch,2.5000000000000004,1.8162757129480298,27.34897148207882
