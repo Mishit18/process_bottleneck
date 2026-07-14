@@ -1,0 +1,11 @@
+simpy
+numpy<2
+pandas
+matplotlib
+seaborn
+scipy
+statsmodels
+plotly
+nbconvert
+nbclient
+ipykernel
