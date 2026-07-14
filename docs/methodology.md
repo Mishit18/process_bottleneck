@@ -67,6 +67,12 @@ Sensitivity tests vary:
 
 Stable exponential stations are compared against Erlang-C wait-time estimates. The generated validation output reports mean absolute percentage error versus the analytical queueing estimate.
 
+The repository also includes automated checks:
+
+- `tests/test_simulation_framework.py` verifies queueing formulas, service-time sampling, warmup removal, replication outputs, and capacity helpers.
+- `validate_project.py` checks that all required plots, CSVs, notebooks, documentation files, and validation metrics are present.
+- GitHub Actions runs the unit tests and artifact validation on every push and pull request to `main`.
+
 ## Limitations
 
 The model is intentionally operational rather than behavioral. It does not include customer abandonment, shift schedules, batch cutoffs, learning curves, rework, or failure modes. Those would be natural extensions for a production decision-support model.

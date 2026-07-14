@@ -1,5 +1,7 @@
 # Process Bottleneck Analysis
 
+[![Validate project](https://github.com/Mishit18/process_bottleneck/actions/workflows/validation.yml/badge.svg)](https://github.com/Mishit18/process_bottleneck/actions/workflows/validation.yml)
+
 Discrete-event simulation and operations research project for diagnosing process bottlenecks, testing redesigns, and translating capacity improvements into business recommendations.
 
 The project models two operating environments with the same reusable SimPy framework:
@@ -28,6 +30,7 @@ The current-state bottlenecks are overloaded in both scenarios, with utilisation
 - Sensitivity analysis for arrival rate and bottleneck productivity
 - Cost-benefit analysis with payback and hourly net benefit
 - 18 publication-quality plots plus reproducible CSV outputs
+- Unit tests and GitHub Actions validation for reproducibility checks
 
 ## Repository Structure
 
@@ -38,10 +41,16 @@ process_bottleneck/
 |-- simulation_framework.py
 |-- run_analysis.py
 |-- validate_project.py
+|-- pyproject.toml
 |-- summary.md
+|-- tests/
+|   `-- test_simulation_framework.py
 |-- docs/
 |   |-- methodology.md
+|   |-- interview_guide.md
 |   `-- portfolio_case_study.md
+|-- .github/
+|   `-- workflows/validation.yml
 |-- outputs/
 |   |-- results_comparison.csv
 |   |-- cost_benefit.csv
@@ -71,6 +80,12 @@ Validate the generated project artifacts:
 python validate_project.py
 ```
 
+Run the test suite:
+
+```bash
+pytest
+```
+
 Open the scenario notebooks:
 
 ```bash
@@ -96,9 +111,12 @@ jupyter notebook scenario_b_warehouse.ipynb
 
 - `simulation_framework.py`: reusable DES engine, service-time sampling, Erlang-C analysis, replication logic
 - `run_analysis.py`: scenario definitions, redesign experiments, sensitivity tests, cost-benefit logic, plot generation
+- `validate_project.py`: artifact quality gate for CSVs, plots, notebooks, docs, and validation thresholds
+- `tests/test_simulation_framework.py`: unit tests for queueing helpers, simulation behavior, warmup removal, and replication outputs
 - `summary.md`: final quantified recommendations and resume-ready bullets
 - `docs/methodology.md`: modeling assumptions, validation approach, and limitations
 - `docs/portfolio_case_study.md`: interview-friendly explanation of the project and business impact
+- `docs/interview_guide.md`: short pitch, talking points, and likely interview questions
 
 ## Reproducibility
 

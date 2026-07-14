@@ -1,0 +1,32 @@
+[project]
+name = "process-bottleneck-analysis"
+version = "1.0.0"
+description = "Discrete-event simulation project for process bottleneck analysis and operations redesign."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Mishit Sharma" }
+]
+dependencies = [
+  "simpy",
+  "numpy<2",
+  "pandas",
+  "matplotlib",
+  "seaborn",
+  "scipy",
+  "statsmodels",
+  "plotly",
+  "nbconvert",
+  "nbclient",
+  "ipykernel"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

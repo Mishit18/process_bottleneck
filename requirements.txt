@@ -9,3 +9,4 @@ plotly
 nbconvert
 nbclient
 ipykernel
+pytest

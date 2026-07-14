@@ -12,8 +12,11 @@ REQUIRED_ROOT_FILES = [
     "README.md",
     "summary.md",
     "requirements.txt",
+    "pyproject.toml",
+    "LICENSE",
     "simulation_framework.py",
     "run_analysis.py",
+    "validate_project.py",
     "scenario_a_kyc.ipynb",
     "scenario_b_warehouse.ipynb",
 ]
@@ -103,6 +106,7 @@ def validate_text_quality():
             (PROJECT_DIR / "summary.md").read_text(encoding="utf-8"),
             (PROJECT_DIR / "docs" / "methodology.md").read_text(encoding="utf-8"),
             (PROJECT_DIR / "docs" / "portfolio_case_study.md").read_text(encoding="utf-8"),
+            (PROJECT_DIR / "docs" / "interview_guide.md").read_text(encoding="utf-8"),
         ]
     )
     banned = ["TODO", "TBD", "[X]", "[Y]", "[Z]", "placeholder"]
@@ -111,17 +115,34 @@ def validate_text_quality():
         raise AssertionError(f"Unresolved placeholder text found: {found}")
 
 
+def validate_repo_controls():
+    workflow = PROJECT_DIR / ".github" / "workflows" / "validation.yml"
+    tests = PROJECT_DIR / "tests" / "test_simulation_framework.py"
+    assert_exists([workflow, tests])
+    assert_not_empty([workflow, tests])
+
+    workflow_text = workflow.read_text(encoding="utf-8")
+    for command in ["pytest", "python validate_project.py"]:
+        if command not in workflow_text:
+            raise AssertionError(f"GitHub workflow does not run: {command}")
+
+
 def main():
     root_files = [PROJECT_DIR / name for name in REQUIRED_ROOT_FILES]
     output_files = [OUTPUT_DIR / name for name in REQUIRED_OUTPUTS]
     plot_files = [OUTPUT_DIR / name for name in REQUIRED_PLOTS]
-    doc_files = [PROJECT_DIR / "docs" / "methodology.md", PROJECT_DIR / "docs" / "portfolio_case_study.md"]
+    doc_files = [
+        PROJECT_DIR / "docs" / "methodology.md",
+        PROJECT_DIR / "docs" / "portfolio_case_study.md",
+        PROJECT_DIR / "docs" / "interview_guide.md",
+    ]
 
     assert_exists(root_files + output_files + plot_files + doc_files)
     assert_not_empty(root_files + output_files + plot_files + doc_files)
     validate_notebooks()
     validate_outputs()
     validate_text_quality()
+    validate_repo_controls()
 
     print("Project validation passed.")
     print(f"Checked {len(root_files)} root files, {len(output_files)} CSV outputs, and {len(plot_files)} plots.")
