@@ -26,10 +26,14 @@ REQUIRED_OUTPUTS = [
     "cost_benefit.csv",
     "stress_test.csv",
     "erlang_c_validation.csv",
+    "kpi_summary.csv",
+    "event_log_sample.csv",
+    "item_log_sample.csv",
     "kyc_arrival_sensitivity.csv",
     "kyc_mu_sensitivity.csv",
     "warehouse_arrival_sensitivity.csv",
     "warehouse_mu_sensitivity.csv",
+    "executive_dashboard.html",
 ]
 
 REQUIRED_PLOTS = [
@@ -83,6 +87,9 @@ def validate_outputs():
     cost = pd.read_csv(OUTPUT_DIR / "cost_benefit.csv")
     stress = pd.read_csv(OUTPUT_DIR / "stress_test.csv")
     validation = pd.read_csv(OUTPUT_DIR / "erlang_c_validation.csv")
+    kpi = pd.read_csv(OUTPUT_DIR / "kpi_summary.csv")
+    event_log = pd.read_csv(OUTPUT_DIR / "event_log_sample.csv")
+    item_log = pd.read_csv(OUTPUT_DIR / "item_log_sample.csv")
 
     if comparison.shape[0] != 8:
         raise AssertionError("results_comparison.csv should contain 8 rows")
@@ -97,6 +104,15 @@ def validate_outputs():
         raise AssertionError("Throughput means contain null values")
     if validation["abs_pct_error"].mean() > 10.5:
         raise AssertionError("Erlang-C validation error exceeds tolerance")
+    if kpi.shape[0] != 8:
+        raise AssertionError("kpi_summary.csv should contain 8 configuration rows")
+    if event_log.empty or item_log.empty:
+        raise AssertionError("Event and item audit logs must not be empty")
+    required_event_cols = {"item_id", "step", "wait_time_min", "service_time_min", "config"}
+    if not required_event_cols.issubset(event_log.columns):
+        raise AssertionError("event_log_sample.csv is missing required audit columns")
+    if (kpi["cycle_time_p95_min"] < kpi["cycle_time_p50_min"]).any():
+        raise AssertionError("KPI p95 cycle time cannot be below p50 cycle time")
 
 
 def validate_text_quality():
@@ -107,6 +123,7 @@ def validate_text_quality():
             (PROJECT_DIR / "docs" / "methodology.md").read_text(encoding="utf-8"),
             (PROJECT_DIR / "docs" / "portfolio_case_study.md").read_text(encoding="utf-8"),
             (PROJECT_DIR / "docs" / "interview_guide.md").read_text(encoding="utf-8"),
+            (PROJECT_DIR / "docs" / "calibration_playbook.md").read_text(encoding="utf-8"),
         ]
     )
     banned = ["TODO", "TBD", "[X]", "[Y]", "[Z]", "placeholder"]
@@ -135,6 +152,7 @@ def main():
         PROJECT_DIR / "docs" / "methodology.md",
         PROJECT_DIR / "docs" / "portfolio_case_study.md",
         PROJECT_DIR / "docs" / "interview_guide.md",
+        PROJECT_DIR / "docs" / "calibration_playbook.md",
     ]
 
     assert_exists(root_files + output_files + plot_files + doc_files)

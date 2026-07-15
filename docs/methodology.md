@@ -35,11 +35,14 @@ Each configuration is simulated with 10 independent replications. Seeds are dete
 Tracked metrics include:
 
 - Total cycle time
+- p50, p90, p95, and p99 cycle time
+- SLA breach rate
 - Throughput per hour
 - Per-step wait time
 - Per-step service time
 - Time-weighted queue length
 - Bottleneck queue length
+- Item-level event logs for auditability
 
 ## Redesign Logic
 
@@ -72,6 +75,8 @@ The repository also includes automated checks:
 - `tests/test_simulation_framework.py` verifies queueing formulas, service-time sampling, warmup removal, replication outputs, and capacity helpers.
 - `validate_project.py` checks that all required plots, CSVs, notebooks, documentation files, and validation metrics are present.
 - GitHub Actions runs the unit tests and artifact validation on every push and pull request to `main`.
+
+For real-world deployment, `docs/calibration_playbook.md` defines the event-log schema and calibration steps needed to replace scenario assumptions with observed process data.
 
 ## Limitations
 

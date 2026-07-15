@@ -30,6 +30,8 @@ The current-state bottlenecks are overloaded in both scenarios, with utilisation
 - Sensitivity analysis for arrival rate and bottleneck productivity
 - Cost-benefit analysis with payback and hourly net benefit
 - 18 publication-quality plots plus reproducible CSV outputs
+- Item-level event logs, SLA breach metrics, and p95/p99 cycle-time KPIs
+- Interactive HTML dashboard for executive review
 - Unit tests and GitHub Actions validation for reproducibility checks
 
 ## Repository Structure
@@ -46,6 +48,7 @@ process_bottleneck/
 |-- tests/
 |   `-- test_simulation_framework.py
 |-- docs/
+|   |-- calibration_playbook.md
 |   |-- methodology.md
 |   |-- interview_guide.md
 |   `-- portfolio_case_study.md
@@ -55,6 +58,9 @@ process_bottleneck/
 |   |-- results_comparison.csv
 |   |-- cost_benefit.csv
 |   |-- stress_test.csv
+|   |-- kpi_summary.csv
+|   |-- event_log_sample.csv
+|   |-- executive_dashboard.html
 |   |-- erlang_c_validation.csv
 |   `-- *.png
 `-- requirements.txt
@@ -107,6 +113,15 @@ jupyter notebook scenario_b_warehouse.ipynb
 
 ![Warehouse queue stability](outputs/warehouse_plot_10_queue_panels.png)
 
+## Interactive Dashboard
+
+The generated file `outputs/executive_dashboard.html` provides an interactive review of:
+
+- Mean cycle time with confidence intervals
+- Redesign economics
+- p95 cycle-time risk versus SLA
+- +50% demand stress-test bottleneck queues
+
 ## Key Files
 
 - `simulation_framework.py`: reusable DES engine, service-time sampling, Erlang-C analysis, replication logic
@@ -115,6 +130,7 @@ jupyter notebook scenario_b_warehouse.ipynb
 - `tests/test_simulation_framework.py`: unit tests for queueing helpers, simulation behavior, warmup removal, and replication outputs
 - `summary.md`: final quantified recommendations and resume-ready bullets
 - `docs/methodology.md`: modeling assumptions, validation approach, and limitations
+- `docs/calibration_playbook.md`: schema and steps for calibrating the simulation with real operational logs
 - `docs/portfolio_case_study.md`: interview-friendly explanation of the project and business impact
 - `docs/interview_guide.md`: short pitch, talking points, and likely interview questions
 

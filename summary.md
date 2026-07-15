@@ -30,7 +30,8 @@ Stable exponential steps in the recommended redesigns had mean absolute wait-tim
 ## Deliverables
 - 2 executable scenario notebooks
 - 18 generated plots
-- CSV outputs for comparison, cost-benefit, stress testing, sensitivity analysis, and Erlang-C validation
+- Interactive executive dashboard at `outputs/executive_dashboard.html`
+- CSV outputs for comparison, cost-benefit, stress testing, sensitivity analysis, SLA KPIs, event logs, and Erlang-C validation
 - Reusable SimPy framework with warmup removal, queue monitoring, route fractions, and replication logic
 
 ## Resume Bullets

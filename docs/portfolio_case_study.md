@@ -29,6 +29,8 @@ The project translates simulation results into operating recommendations:
 - Warehouse: Zone Picking generates an estimated Rs.5,165/hr net benefit.
 - Demand stress testing exposes how current-state queues diverge under surge conditions.
 - Sensitivity analysis provides practical capacity-planning thresholds.
+- Item-level event logs and SLA KPIs make the model auditable beyond aggregate averages.
+- The interactive dashboard gives an executive view of cycle time, economics, tail risk, and stress behavior.
 
 ## Resume Bullets
 

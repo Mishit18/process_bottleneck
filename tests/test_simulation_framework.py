@@ -47,8 +47,11 @@ def test_run_simulation_discards_warmup_items():
 
     assert result.completed_items == 50
     assert len(result.total_cycle_times) == 50
+    assert len(result.item_log) == 50
+    assert len(result.event_log) >= 100
     assert result.throughput_per_hour > 0
     assert all(len(trace) > 1 for trace in result.step_queue_lengths.values())
+    assert {"item_id", "step", "wait_time_min", "service_time_min"}.issubset(result.event_log[0])
 
 
 def test_replications_return_confidence_interval_metrics():

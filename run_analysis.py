@@ -11,6 +11,8 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
 import seaborn as sns
 from scipy.stats import gaussian_kde
 
@@ -225,6 +227,192 @@ def wh_costs(results):
 
 def best_by_net(cost_df):
     return cost_df.sort_values("net_benefit_hr", ascending=False).iloc[0]["config"]
+
+
+def build_operational_kpis(artifacts):
+    kpi_rows = []
+    event_samples = []
+    item_samples = []
+
+    for artifact in artifacts:
+        scenario_key = artifact["spec"]["prefix"]
+        scenario_name = artifact["spec"]["name"]
+        sla = artifact["spec"]["sla"]
+        best = artifact["best_label"]
+
+        for config_label, result_bundle in artifact["results"].items():
+            item_frames = []
+            for rep, sim_result in enumerate(result_bundle["raw_results"]):
+                item_df = pd.DataFrame(sim_result.item_log)
+                if item_df.empty:
+                    continue
+                item_df["replication"] = rep
+                item_frames.append(item_df)
+
+                if rep == 0 and config_label in ("Current State", best):
+                    event_df = pd.DataFrame(sim_result.event_log)
+                    if not event_df.empty:
+                        event_df["scenario"] = scenario_name
+                        event_df["scenario_key"] = scenario_key
+                        event_df["config"] = config_label
+                        event_df["replication"] = rep
+                        event_samples.append(event_df.head(250))
+
+                    sample_items = item_df.head(100).copy()
+                    sample_items["scenario"] = scenario_name
+                    sample_items["scenario_key"] = scenario_key
+                    sample_items["config"] = config_label
+                    item_samples.append(sample_items)
+
+            if not item_frames:
+                continue
+
+            all_items = pd.concat(item_frames, ignore_index=True)
+            cycle = all_items["cycle_time_min"]
+            kpi_rows.append(
+                {
+                    "scenario": scenario_name,
+                    "scenario_key": scenario_key,
+                    "config": config_label,
+                    "items_observed": int(len(all_items)),
+                    "cycle_time_p50_min": float(cycle.quantile(0.50)),
+                    "cycle_time_p90_min": float(cycle.quantile(0.90)),
+                    "cycle_time_p95_min": float(cycle.quantile(0.95)),
+                    "cycle_time_p99_min": float(cycle.quantile(0.99)),
+                    "sla_min": sla,
+                    "sla_breach_rate": float((cycle > sla).mean()),
+                }
+            )
+
+    kpi_df = pd.DataFrame(kpi_rows)
+    event_df = pd.concat(event_samples, ignore_index=True) if event_samples else pd.DataFrame()
+    item_df = pd.concat(item_samples, ignore_index=True) if item_samples else pd.DataFrame()
+    return kpi_df, event_df, item_df
+
+
+def build_interactive_dashboard(comparison, cost, stress, kpi):
+    comp = comparison.copy()
+    comp["scenario_config"] = comp["scenario_key"].str.upper() + " - " + comp["config"]
+    cost = cost.copy()
+    cost["scenario_config"] = cost["scenario_key"].str.upper() + " - " + cost["config"]
+    stress = stress.copy()
+    stress["scenario_config"] = stress["scenario_key"].str.upper() + " - " + stress["config"]
+    kpi = kpi.copy()
+    kpi["scenario_config"] = kpi["scenario_key"].str.upper() + " - " + kpi["config"]
+
+    cycle_fig = go.Figure()
+    cycle_fig.add_trace(
+        go.Bar(
+            x=comp["scenario_config"],
+            y=comp["cycle_time_min_mean"],
+            error_y=dict(
+                type="data",
+                array=comp["cycle_time_min_ci_high"] - comp["cycle_time_min_mean"],
+                arrayminus=comp["cycle_time_min_mean"] - comp["cycle_time_min_ci_low"],
+            ),
+            marker_color="#4c78a8",
+            hovertemplate="%{x}<br>Mean cycle time=%{y:.1f} min<extra></extra>",
+        )
+    )
+    cycle_fig.update_layout(
+        title="Mean Cycle Time With 95% Confidence Intervals",
+        xaxis_title="Scenario and configuration",
+        yaxis_title="Minutes",
+        template="plotly_white",
+        height=480,
+    )
+
+    cost_fig = go.Figure()
+    cost_fig.add_trace(
+        go.Scatter(
+            x=cost["additional_cost_hr"],
+            y=cost["net_benefit_hr"],
+            mode="markers+text",
+            text=cost["scenario_config"],
+            textposition="top center",
+            marker=dict(size=16, color=cost["throughput_improvement_hr"], colorscale="Viridis", showscale=True),
+            hovertemplate="Cost=Rs.%{x:.0f}/hr<br>Net benefit=Rs.%{y:.0f}/hr<extra></extra>",
+        )
+    )
+    cost_fig.update_layout(
+        title="Redesign Economics",
+        xaxis_title="Additional operating cost (Rs./hour)",
+        yaxis_title="Net benefit (Rs./hour)",
+        template="plotly_white",
+        height=480,
+    )
+
+    sla_fig = go.Figure()
+    sla_fig.add_trace(
+        go.Bar(
+            x=kpi["scenario_config"],
+            y=kpi["cycle_time_p95_min"],
+            name="p95 cycle time",
+            marker_color="#f58518",
+        )
+    )
+    sla_fig.add_trace(
+        go.Scatter(
+            x=kpi["scenario_config"],
+            y=kpi["sla_min"],
+            name="SLA target",
+            mode="lines+markers",
+            line=dict(color="#333333", dash="dash"),
+        )
+    )
+    sla_fig.update_layout(
+        title="Tail Cycle-Time Risk vs SLA",
+        xaxis_title="Scenario and configuration",
+        yaxis_title="Minutes",
+        template="plotly_white",
+        height=480,
+    )
+
+    stress_fig = go.Figure()
+    stress_fig.add_trace(
+        go.Bar(
+            x=stress["scenario_config"],
+            y=stress["bottleneck_queue"],
+            marker_color=np.where(stress["collapsed"], "#d95f5f", "#2ca25f"),
+            hovertemplate="%{x}<br>Avg bottleneck queue=%{y:.1f}<extra></extra>",
+        )
+    )
+    stress_fig.update_layout(
+        title="+50% Demand Stress Test: Bottleneck Queue",
+        xaxis_title="Scenario and configuration",
+        yaxis_title="Average bottleneck queue",
+        template="plotly_white",
+        height=480,
+    )
+
+    sections = [
+        pio.to_html(cycle_fig, include_plotlyjs="cdn", full_html=False),
+        pio.to_html(cost_fig, include_plotlyjs=False, full_html=False),
+        pio.to_html(sla_fig, include_plotlyjs=False, full_html=False),
+        pio.to_html(stress_fig, include_plotlyjs=False, full_html=False),
+    ]
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Process Bottleneck Dashboard</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 32px; color: #222; }}
+    h1 {{ margin-bottom: 0; }}
+    .subtitle {{ color: #555; margin-top: 6px; }}
+    .grid {{ display: grid; grid-template-columns: 1fr; gap: 28px; }}
+  </style>
+</head>
+<body>
+  <h1>Process Bottleneck Executive Dashboard</h1>
+  <p class="subtitle">Interactive review of cycle time, economics, SLA tail risk, and demand stress-test outcomes.</p>
+  <div class="grid">
+    {''.join(f'<section>{section}</section>' for section in sections)}
+  </div>
+</body>
+</html>
+"""
+    (OUTPUT_DIR / "executive_dashboard.html").write_text(html, encoding="utf-8")
 
 
 def plot_process_flow(name, steps, out_path):
@@ -777,15 +965,20 @@ def write_summary(kyc, wh):
     all_cost = pd.concat([kyc["cost"], wh["cost"]], ignore_index=True)
     all_stress = pd.concat([kyc["stress"], wh["stress"]], ignore_index=True)
     validation = pd.concat([kyc["validation"], wh["validation"]], ignore_index=True)
+    kpi, event_sample, item_sample = build_operational_kpis([kyc, wh])
 
     all_comp.to_csv(OUTPUT_DIR / "results_comparison.csv", index=False)
     all_cost.to_csv(OUTPUT_DIR / "cost_benefit.csv", index=False)
     all_stress.to_csv(OUTPUT_DIR / "stress_test.csv", index=False)
     validation.to_csv(OUTPUT_DIR / "erlang_c_validation.csv", index=False)
+    kpi.to_csv(OUTPUT_DIR / "kpi_summary.csv", index=False)
+    event_sample.to_csv(OUTPUT_DIR / "event_log_sample.csv", index=False)
+    item_sample.to_csv(OUTPUT_DIR / "item_log_sample.csv", index=False)
     kyc["mu_sensitivity"].to_csv(OUTPUT_DIR / "kyc_mu_sensitivity.csv", index=False)
     wh["mu_sensitivity"].to_csv(OUTPUT_DIR / "warehouse_mu_sensitivity.csv", index=False)
     kyc["arrival_sensitivity"].to_csv(OUTPUT_DIR / "kyc_arrival_sensitivity.csv", index=False)
     wh["arrival_sensitivity"].to_csv(OUTPUT_DIR / "warehouse_arrival_sensitivity.csv", index=False)
+    build_interactive_dashboard(all_comp, all_cost, all_stress, kpi)
 
     def section(artifact):
         spec = artifact["spec"]
@@ -872,7 +1065,8 @@ def write_summary(kyc, wh):
         + "\n## Deliverables\n"
         + "- 2 executable scenario notebooks\n"
         + "- 18 generated plots\n"
-        + "- CSV outputs for comparison, cost-benefit, stress testing, sensitivity analysis, and Erlang-C validation\n"
+        + "- Interactive executive dashboard at `outputs/executive_dashboard.html`\n"
+        + "- CSV outputs for comparison, cost-benefit, stress testing, sensitivity analysis, SLA KPIs, event logs, and Erlang-C validation\n"
         + "- Reusable SimPy framework with warmup removal, queue monitoring, route fractions, and replication logic\n"
         + "\n## Resume Bullets\n"
         + "\n".join(f"- {bullet}" for bullet in bullets)

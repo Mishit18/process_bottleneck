@@ -29,6 +29,8 @@ class SimResults:
     step_wait_times: Dict[str, List[float]] = field(default_factory=dict)
     step_service_times: Dict[str, List[float]] = field(default_factory=dict)
     step_queue_lengths: Dict[str, List[Tuple[float, int]]] = field(default_factory=dict)
+    event_log: List[Dict] = field(default_factory=list)
+    item_log: List[Dict] = field(default_factory=list)
     total_cycle_times: List[float] = field(default_factory=list)
     throughput_per_hour: float = 0.0
     completed_items: int = 0
@@ -137,6 +139,7 @@ def run_simulation(config: SimConfig) -> SimResults:
     def process_item(item_id):
         arrival_time = env.now
         is_warmup = item_id < config.warmup_items
+        completed_steps = []
         if not is_warmup and first_measured_arrival[0] is None:
             first_measured_arrival[0] = arrival_time
 
@@ -145,6 +148,7 @@ def run_simulation(config: SimConfig) -> SimResults:
             if route_fraction < 1.0 and rng.random() > route_fraction:
                 continue
 
+            queue_length_on_arrival = len(resources[step_name].queue)
             req = resources[step_name].request()
             wait_start = env.now
             yield req
@@ -154,14 +158,40 @@ def run_simulation(config: SimConfig) -> SimResults:
                 step_params["mu"], step_params.get("dist", "exponential"), rng
             )
             yield env.timeout(service_time)
+            service_end = env.now
             resources[step_name].release(req)
+            completed_steps.append(step_name)
 
             if not is_warmup:
                 results.step_wait_times[step_name].append(wait_end - wait_start)
                 results.step_service_times[step_name].append(service_time)
+                results.event_log.append(
+                    {
+                        "item_id": item_id,
+                        "step": step_name,
+                        "arrival_time_hr": arrival_time,
+                        "queue_enter_time_hr": wait_start,
+                        "service_start_time_hr": wait_end,
+                        "service_end_time_hr": service_end,
+                        "wait_time_min": (wait_end - wait_start) * 60,
+                        "service_time_min": service_time * 60,
+                        "queue_length_on_arrival": queue_length_on_arrival,
+                    }
+                )
 
         if not is_warmup:
-            results.total_cycle_times.append(env.now - arrival_time)
+            cycle_time = env.now - arrival_time
+            results.total_cycle_times.append(cycle_time)
+            results.item_log.append(
+                {
+                    "item_id": item_id,
+                    "arrival_time_hr": arrival_time,
+                    "completion_time_hr": env.now,
+                    "cycle_time_min": cycle_time * 60,
+                    "steps_completed": len(completed_steps),
+                    "path": " > ".join(completed_steps),
+                }
+            )
             completed_counter[0] += 1
             last_measured_completion[0] = env.now
 

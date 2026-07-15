@@ -10,7 +10,7 @@ This project uses discrete-event simulation to diagnose process bottlenecks in t
 - Bottlenecks are identified before simulation, which makes the diagnosis explainable.
 - Redesigns are compared through business impact, not only operational metrics.
 - The results include uncertainty through confidence intervals.
-- The project includes reproducibility checks, tests, and CI.
+- The project includes event-level audit logs, SLA KPIs, reproducibility checks, tests, and CI.
 
 ## KYC Talking Points
 
@@ -42,4 +42,4 @@ Add abandonment, rework, staff shifts, SLA breach probabilities, batching window
 
 ### What makes the result credible?
 
-The project uses replicated simulations, confidence intervals, analytical validation against Erlang-C for stable exponential steps, queue monitoring throughout the run, unit tests, and automated artifact validation.
+The project uses replicated simulations, confidence intervals, analytical validation against Erlang-C for stable exponential steps, queue monitoring throughout the run, event-level audit logs, unit tests, and automated artifact validation.
